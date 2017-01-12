@@ -49,6 +49,7 @@ func main() {
 }
 
 // Open file and begin filtering.
+// Save the mateches to the file specified by the second parameter.
 func Begin(file string, result string) error {
 	// Read the entire file to memory.
 	data, err := ioutil.ReadFile(file)
@@ -56,7 +57,8 @@ func Begin(file string, result string) error {
 		return err
 	}
 
-	// Convert to string.
+	// Begin filtering.
+	// At present, only print the matches to screen.
 	return grep(string(data))
 }
 
