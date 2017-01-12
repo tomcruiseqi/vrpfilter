@@ -28,6 +28,7 @@ const (
 	Police      = `[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼][A-Z0-9][0-9]{3}警`
 	HM          = `粤Z[A-Z0-9]{4}[港澳]`
 	Embassy     = `使[0-9]{6}`
+	ReCount     = 6
 )
 
 func main() {
@@ -40,96 +41,68 @@ func main() {
 
 	others = append(others, *input)
 	for _, file := range others {
-		ok, err := Begin(file, *output)
-		if !ok {
+		err := Begin(file, *output)
+		if err != nil {
 			fmt.Println(err)
 		}
 	}
 }
 
 // Open file and begin filtering.
-func Begin(file string, result string) (ok bool, err error) {
+func Begin(file string, result string) error {
 	// Read the entire file to memory.
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
-		ok = false
-		return
+		return err
 	}
 
 	// Convert to string.
-	ok, err = grep(string(data), result)
-	return
+	return grep(string(data))
 }
 
 // Filter the text, find all of the license
-// plate numbers and write to a file.
-// If success, return ok as true. Otherwise, send an error to the caller
-// and explain why fails.
-func grep(data string, result string) (ok bool, err error) {
-	ordinary, err := regexp.Compile(OrdinaryRe)
+// plate numbers and write to screen.
+//  Otherwise, send an error to the caller
+func grep(data string) error {
+	matches := make(chan *[]string, 100)
+	go findvrps(OrdinaryRe, data, matches)
+	go findvrps(ArmedPolice, data, matches)
+	go findvrps(Military, data, matches)
+	go findvrps(Police, data, matches)
+	go findvrps(HM, data, matches)
+	go findvrps(Embassy, data, matches)
+	printvrps(matches)
+	return nil
+}
+
+// Apply regular expression to the data given.
+func findvrps(regex string, data string, matches chan *[]string) {
+	regobj, err := regexp.Compile(regex)
 	if err != nil {
-		ok = false
+		fmt.Println("error occurs. regex - [%v] data - [%v] error - [%v]", regex, data, err)
 		return
 	}
 
-	armedpol, err := regexp.Compile(ArmedPolice)
-	if err != nil {
-		ok = false
-		return
-	}
-
-	military, err := regexp.Compile(Military)
-	if err != nil {
-		ok = false
-		return
-	}
-
-	police, err := regexp.Compile(Police)
-	if err != nil {
-		ok = false
-		return
-	}
-
-	hm, err := regexp.Compile(HM)
-	if err != nil {
-		ok = false
-		return
-	}
-
-	embassy, err := regexp.Compile(Embassy)
-	if err != nil {
-		ok = false
-		return
-	}
-
-	// Filter the ordinary vehicle registration plate.
-	orvrps := ordinary.FindAllString(data, -1)
-	PrintVrps(orvrps)
-
-	amvrps := armedpol.FindAllString(data, -1)
-	PrintVrps(amvrps)
-
-	milvrps := military.FindAllString(data, -1)
-	PrintVrps(milvrps)
-
-	polvrps := police.FindAllString(data, -1)
-	PrintVrps(polvrps)
-
-	hmvrps := hm.FindAllString(data, -1)
-	PrintVrps(hmvrps)
-
-	emvrps := embassy.FindAllString(data, -1)
-	PrintVrps(emvrps)
-
-	return true, nil
+	// Begin filtering.
+	mares := regobj.FindAllString(data, -1)
+	matches <- &mares
+	matches <- nil
 }
 
 // Print the matches.
-func PrintVrps(vrps []string) (bool, error) {
-	if len(vrps) == 0 {
-		return true, nil
-	}
+func printvrps(matches chan *[]string) {
+	finished := 0
+	for match := range matches {
+		// One kind of match has finished.
+		if match == nil {
+			finished++
 
-	fmt.Println(vrps)
-	return true, nil
+			if ReCount == finished {
+				return
+			}
+			continue
+		}
+
+		fmt.Println(*match)
+	}
 }
